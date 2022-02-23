@@ -1,0 +1,32 @@
+# Cabal
+dist-newstyle/
+dist/
+.ghc*
+.cabal-sandbox
+cache
+.stack-work
+
+# GHC
+*.hi
+
+# OS Files
+.DS_Store
+.DS_Store?
+desktop.ini
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.ini
+
+# Compiled files
+out/
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+*.out
