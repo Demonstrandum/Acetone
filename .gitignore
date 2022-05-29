@@ -1,10 +1,12 @@
 # Cabal
 dist-newstyle/
 dist/
+.dist/
 .ghc*
 .cabal-sandbox
 cache
 .stack-work
+debug/
 
 # GHC
 *.hi

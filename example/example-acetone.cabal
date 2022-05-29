@@ -1,0 +1,23 @@
+cabal-version:      3.0
+name:               example-acetone
+version:            0.1.0
+synopsis:           Debug testing of Acetone.
+
+license:            GPL-3.0-or-later
+license-file:       LICENSE
+author:             Samuel
+maintainer:         samuel@knutsen.co
+
+category:           Graphics
+extra-source-files: README.md
+
+executable acetone-debug-example
+    main-is:        Main.hs
+    other-modules:  
+    hs-source-dirs: ./
+    build-depends:
+        base ^>=4.14.3.0,
+        acetone-backend-glfw ^>= 0.1.0,
+        acetone ^>= 0.1.0
+    ghc-options: -Wall -Wdeprecations -O2 -threaded -rtsopts -with-rtsopts=-N
+    default-language: Haskell2010

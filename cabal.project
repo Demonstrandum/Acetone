@@ -1,0 +1,6 @@
+packages:
+    acetone.cabal
+    acetone-backend-debug/
+    acetone-backend-glfw/
+    acetone-backend-png/
+    example

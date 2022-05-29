@@ -1,0 +1,24 @@
+cabal-version:      3.0
+name:               acetone-backend-debug
+version:            0.1.0
+synopsis: Debug backend for Acetone, proivides only textual output.
+
+homepage:           https://github.com/Demonstrandum/Acetone
+bug-reports:        https://github.com/Demonstrandum/Acetone
+license-file:       LICENSE
+license:            GPL-3.0-or-later
+author:             Samuel
+maintainer:         samuel@knutsen.co
+
+category:           Graphics
+extra-source-files: README.md
+
+library
+    exposed-modules:  Acetone.Backend.Debug
+    build-depends:    base ^>=4.14.3.0
+                    , data-default ^>=0.7.1.1
+                    , mtl ^>=2.2.2
+                    , acetone ^>=0.1.0
+    hs-source-dirs:   lib
+    ghc-options: -Wall -Wdeprecations -O2
+    default-language: Haskell2010

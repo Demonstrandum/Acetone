@@ -1,0 +1,25 @@
+cabal-version:      3.0
+name:               acetone-backend-glfw
+version:            0.1.0
+synopsis:
+    GLFW backend for Acetone. OpenGL or Vulkan on Linux (X11/Wayland), macOS and Windows.
+bug-reports: https://github.com/Demonstrandum/Acetone
+
+license:            GPL-3.0-or-later
+license-file:       LICENSE
+author:             Samuel
+maintainer:         samuel@knutsen.co
+
+category:           Graphics
+extra-source-files: README.md
+
+library
+    exposed-modules:  Acetone.Backend.GLFW
+    build-depends:    base ^>=4.14.3.0
+                    , acetone ^>=0.1.0
+                    , GLFW-b ^>=3.3.0.0
+                    , OpenGL ^>=3.0.3.0
+                    , time ^>= 1.9.3
+    hs-source-dirs:   lib
+    ghc-options: -Wall -Wdeprecations -O2
+    default-language: Haskell2010
