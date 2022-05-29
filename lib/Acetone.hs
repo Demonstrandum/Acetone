@@ -21,6 +21,7 @@ import qualified Acetone.Input as Input
 import qualified Acetone.Frontend as Frontend
 import GHC.Clock (getMonotonicTime)
 import Control.Concurrent (threadDelay, getChanContents, writeChan, readChan)
+import qualified Data.Functor
 
 -- | Used to represent pixel sizes internally.
 type Pixels = Int
@@ -39,22 +40,25 @@ type EventHandler a = Input.Event -> GraphicsMonad a ()
 data InternalState = InternalState
     { lastIO :: IO ()  -- ^ Context of last IO operations.  Useful to recontextualise a call to `liftIO`.
     , windowTitle :: String
-    , windowSize :: (Pixels, Pixels)
-    , windowPosition :: (Pixels, Pixels)
-    , windowMousePosition :: (Pixels, Pixels)  -- ^ Use `mousePosition` to get normalised.
+    , initialWindowSize :: (Pixels, Pixels)
+    , initialWindowPosition :: (Pixels, Pixels)
     , closeWindow :: Bool
     , rendererAction :: Frontend.RendererAction
     , backendUpdate :: InternalState -> IO InternalState  -- ^ Only call with an intention (renderer action).
     , beforeRedraw :: IO ()
     ,  afterRedraw :: IO ()
+    , getMousePosition :: IO (Double, Double)
+    , getWindowPosition :: IO (Pixels, Pixels)
+    , getWindowSize :: IO (Pixels, Pixels)
     , eventQueue :: Maybe Input.EventQueue  -- ^ Channel of events.
     }
 
 instance Default InternalState where
-    def = InternalState (pure ()) "" (0, 0) (0, 0) (0, 0) False Frontend.DoNothing
+    def = InternalState (pure ()) "" (0, 0) (0, 0) False Frontend.DoNothing
                         (\i -> hPutStr stderr "error: no backend installed!\n" >> pure i)
                         (hPutStr stderr "error: no buffer/window exists yet\n")
                         (hPutStr stderr "error: no buffer/window exists yet\n")
+                        (pure (0, 0)) (pure (0, 0)) (pure (0, 0))
                         Nothing
 
 -- | Generic state and IO monad for some given user state structure.
@@ -102,15 +106,16 @@ getState = snd <$> pullState
 setState :: a -> GraphicsMonad a ()
 setState userState =  pullState >>= pushState . (, userState) . fst
 
-normalizePixels :: (Int, Int) -> GraphicsMonad a (Distance, Distance)
+normalizePixels :: Real n => (n, n) -> GraphicsMonad a (Distance, Distance)
 normalizePixels (pixelsLeft, pixelsUp) = do
     internal <- getInternalState
-    let (w, h) = join (***) fromIntegral (windowSize internal)
-    pure (fromIntegral pixelsLeft / w, fromIntegral pixelsUp / h)
+    winSize <- liftIO $ getWindowSize internal
+    let (w, h) = join (***) fromIntegral winSize
+    pure (realToFrac pixelsLeft / w, realToFrac pixelsUp / h)
 
 -- | Gets the mouse position in normalised units.
 mousePosition :: GraphicsMonad a (Distance, Distance)
-mousePosition = getInternalState >>= normalizePixels . windowMousePosition
+mousePosition = (getInternalState >>= (liftIO . getMousePosition)) >>= normalizePixels
 
 --getState :: Member (State (InternalState, state)) a => Eff a (InternalState, state)
 --getState = send getIt
@@ -130,8 +135,8 @@ openWindow title size pos = do
   i <- getInternalState
   let internal = i {
         windowTitle    = title
-      , windowSize     = size
-      , windowPosition = pos
+      , initialWindowSize     = size
+      , initialWindowPosition = pos
       , rendererAction = Frontend.OpenWindow
       }
   setInternalState internal
@@ -200,7 +205,7 @@ pollEvents :: GraphicsMonad a [Input.Event]
 pollEvents = do
   queue <- eventQueue <$> getInternalState
   case queue of
-    Just events -> readInputEvents events
+    Just events -> (:) <$> (uncurry Input.MousePosition <$> mousePosition) <*> readInputEvents events
     Nothing -> error "error: polled event queue before initialisation"
   where readInputEvents :: Input.EventQueue -> GraphicsMonad a [Input.Event]
         readInputEvents events = liftIO (readChan events) >>= buildEvents

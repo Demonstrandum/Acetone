@@ -21,9 +21,10 @@ initExample = installBackend backend
            >> animationFrame 60 (\elapsed -> pollEvents >>= mapM_ eventHandler >> drawScene elapsed)
 
 eventHandler :: Event -> Context ()
-eventHandler (Input Pressed (Mouse LeftClick)) = circleUnderMouse
-eventHandler (Input Released (Key _ (KeyChar 'Q'))) = endAnimation
+eventHandler (Input Pressed (Mouse LeftClick) _) = circleUnderMouse
+eventHandler (Input Released (Key (KeyChar 'Q')) _) = endAnimation
 eventHandler (Resize w h) = logLine $ "Resized to:" ++ show (w, h)
+eventHandler (MousePosition x y) = logStr (" mouse over: " ++ show (x, y))
 --eventHandler Close = 
 eventHandler _ = pure ()
 
