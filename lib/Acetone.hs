@@ -19,14 +19,14 @@ import Control.Monad.State
 
 import qualified Acetone.Input as Input
 import qualified Acetone.Frontend as Frontend
+import qualified Acetone.Shapes as Shapes
+import Acetone.Shapes (Distance)
+
 import GHC.Clock (getMonotonicTime)
-import Control.Concurrent (threadDelay, getChanContents, writeChan, readChan)
-import qualified Data.Functor
+import Control.Concurrent (threadDelay, writeChan, readChan)
 
 -- | Used to represent pixel sizes internally.
 type Pixels = Int
--- | Used for normalised distance.
-type Distance = Double
 -- | Elapsed time (time deltas) in milliseconds
 type Elapsed = Double
 -- | A duration of time from arbitrary starting point, in milliseconds
@@ -51,6 +51,7 @@ data InternalState = InternalState
     , getWindowPosition :: IO (Pixels, Pixels)
     , getWindowSize :: IO (Pixels, Pixels)
     , eventQueue :: Maybe Input.EventQueue  -- ^ Channel of events.
+    , picture :: Shapes.Picture
     }
 
 instance Default InternalState where
@@ -59,7 +60,7 @@ instance Default InternalState where
                         (hPutStr stderr "error: no buffer/window exists yet\n")
                         (hPutStr stderr "error: no buffer/window exists yet\n")
                         (pure (0, 0)) (pure (0, 0)) (pure (0, 0))
-                        Nothing
+                        Nothing mempty
 
 -- | Generic state and IO monad for some given user state structure.
 -- @state@ is the generic type for the user's application's state.
@@ -111,7 +112,9 @@ normalizePixels (pixelsLeft, pixelsUp) = do
     internal <- getInternalState
     winSize <- liftIO $ getWindowSize internal
     let (w, h) = join (***) fromIntegral winSize
-    pure (realToFrac pixelsLeft / w, realToFrac pixelsUp / h)
+    pure $ if w > h
+      then (realToFrac pixelsLeft / h, realToFrac pixelsUp / h)
+      else (realToFrac pixelsLeft / w, realToFrac pixelsUp / w)
 
 -- | Gets the mouse position in normalised units.
 mousePosition :: GraphicsMonad a (Distance, Distance)
@@ -176,9 +179,21 @@ installBackend backend = do oldInternal <- getInternalState
 setupGraphics :: Default state => GraphicsMonad state () -> IO ()
 setupGraphics setupMonad = evalStateT (getStateT setupMonad) def
 
+-- | Draw a picture to the screen.
+draw :: Shapes.Picture -> GraphicsMonad a ()
+draw pic = do
+  old <- getInternalState
+  setInternalState $ old { picture = pic }
+  pulseAction Frontend.DrawPicture
+  new <- getInternalState
+  setInternalState $ new { picture = mempty }
+
 monotonicMillis :: GraphicsMonad a Duration
 monotonicMillis = (1000.0 *) <$> liftIO getMonotonicTime
 
+-- | Perform drawing of the frame with the graphics monad given an elapsed time.
+-- | First argument provides the number of frames to aim to display each second,
+-- | second is the callback to be performed each frame.
 animationFrame :: FPS -> (Elapsed -> GraphicsMonad a ()) -> GraphicsMonad a ()
 animationFrame 0 _ = pure ()
 animationFrame fps callback = monotonicMillis >>= animationFrame'
@@ -194,13 +209,24 @@ animationFrame fps callback = monotonicMillis >>= animationFrame'
           pulseAction Frontend.ShowBuffer
 
           let sleepyTime = frameTime - elapsed
-          when (sleepyTime > 0) $
+          when (sleepyTime > 0) $     -- TODO: this isn't sleeping long enough? does liftIO work here?
             liftIO $ threadDelay (round $ sleepyTime * 1000.0)
 
           stop <- closeWindow <$> getInternalState
           if stop then pure ()
                   else animationFrame' now
 
+-- | Loads events from the event queue to a list of events such that you may
+-- | perform actions on each of these events.  These would usually be passed
+-- | to an event handler, e.g.
+-- >     pollEvents >>= mapM eventHandler >>= drawScene . last
+-- >     -- where we have
+-- >     eventHandler :: Event -> GraphicsMonad () GameState
+-- >     eventHandler (Input ... ) = ...
+-- >     drawScene :: GameState -> GraphicsMonad () ()
+-- >     drawScene (GameState ...) = draw (...)
+-- | Of course, you may do something completely different, since the above
+-- | is a bit naïve.
 pollEvents :: GraphicsMonad a [Input.Event]
 pollEvents = do
   queue <- eventQueue <$> getInternalState

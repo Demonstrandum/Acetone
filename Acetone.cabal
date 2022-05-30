@@ -23,6 +23,7 @@ library
     exposed-modules: Acetone
                    , Acetone.Frontend
                    , Acetone.Input
+                   , Acetone.Shapes
     hs-source-dirs:  lib
     build-depends:
         , base ^>=4.14.3.0

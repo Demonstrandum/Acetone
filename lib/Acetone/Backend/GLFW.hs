@@ -2,6 +2,7 @@ module Acetone.Backend.GLFW (backend) where
 
 import qualified Acetone
 import qualified Acetone.Input as Input
+import qualified Acetone.Shapes as Shapes
 import Acetone.Frontend
 
 import Control.Exception
@@ -31,6 +32,7 @@ backend state = do
     initWindowSize = Acetone.initialWindowSize state
     clearBuffer = Acetone.beforeRedraw state
     swapBuffer = Acetone.afterRedraw state
+    currentPicture = Acetone.picture state
     
     action :: RendererAction -> IO Acetone.InternalState
     action DoNothing = pure state
@@ -46,6 +48,45 @@ backend state = do
                    }
     action ClearBuffer = clearBuffer >> pure state
     action ShowBuffer = swapBuffer >> pure state
+    action DrawPicture = drawPicture currentPicture >> pure state
+
+drawPicture :: Shapes.Picture -> IO ()
+drawPicture (Shapes.Picture []) = pure ()
+drawPicture (Shapes.Picture (shape:shapes)) = drawShape shape >> drawPicture (Shapes.Picture shapes)
+  where drawShape :: Shapes.Shape -> IO ()
+        -- TODO: set the right fill and stroke colour!
+        -- TODO: do stroke
+        -- TODO: support more than just solid color. do textures and gradients too.
+        -- TODO: don't fill if fill a=0, don't stroke if stroke a=0, stroke (connect lines) after fill.
+        drawShape (Shapes.Shape vertices (Shapes.Solid fill) (Shapes.Solid stroke))
+          = GL.color (toGlColor fill) >> drawPolygon (length vertices)
+          where drawPolygon :: Int -> IO ()
+                drawPolygon n
+                  | n == 1 = uncurry drawPoint $ head vertices 
+                  | n == 2 = drawLine     (vertices !! 0) (vertices !! 1)
+                  | n == 3 = drawTriangle (vertices !! 0) (vertices !! 1) (vertices !! 2)
+                  | n == 4 = drawQuad     (vertices !! 0) (vertices !! 1) (vertices !! 2) (vertices !! 3)
+                  | otherwise = drawConcave  -- TODO: Optimise for convex polygons? How to remember that?
+                drawPoint x y = do
+                  GL.renderPrimitive GL.Points $ GL.vertex (GL.Vertex3 x y 0)
+                drawLine (x0, y0) (x1, y1) = do
+                  GL.renderPrimitive GL.Lines $ GL.vertex (GL.Vertex3 x0 y0 0)
+                                             >> GL.vertex (GL.Vertex3 x1 y1 0)
+                drawTriangle (x0, y0) (x1, y1) (x2, y2) = do
+                  GL.renderPrimitive GL.Triangles $
+                       GL.vertex (GL.Vertex3 x0 y0 0)
+                    >> GL.vertex (GL.Vertex3 x1 y1 0)
+                    >> GL.vertex (GL.Vertex3 x2 y2 0)
+                drawQuad (x0, y0) (x1, y1) (x2, y2) (x3, y3) = do
+                  GL.renderPrimitive GL.Quads $
+                       GL.vertex (GL.Vertex3 x0 y0 0)
+                    >> GL.vertex (GL.Vertex3 x1 y1 0)
+                    >> GL.vertex (GL.Vertex3 x2 y2 0)
+                    >> GL.vertex (GL.Vertex3 x3 y3 0)
+                drawConcave = GL.renderPrimitive GL.Polygon $   -- TODO: this only does convex polygons, lol.
+                              mapM_ (\(x, y) -> GL.vertex $ GL.Vertex3 x y 0) vertices
+        toGlColor :: Shapes.Color -> GL.Color4 GL.GLfloat
+        toGlColor (Shapes.Color r g b a) = GL.Color4 (realToFrac r) (realToFrac g) (realToFrac b) (realToFrac a)
 
 initGLFW :: IO ()
 initGLFW = do
@@ -78,11 +119,20 @@ createWindow title (w, h) = do
       GLFW.setScrollCallback      win $ Just (scrollWheel eventQueue)
       GLFW.setWindowCloseCallback win $ Just (closeWindow eventQueue)
       -- Set some sane defaults
+      GL.shadeModel $= GL.Smooth
       GL.lineSmooth $= GL.Enabled
+      GL.polygonSmooth $= GL.Enabled
       GL.blend      $= GL.Enabled
       GL.blendFunc  $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
       GL.lineWidth  $= 1.5
       GL.clearColor $= GL.Color4 0.67 0.194 0.255 1
+      -- Viewport
+      let minor = realToFrac $ if w > h then h else w
+      let (wf, hf) = (fromIntegral w, fromIntegral h)
+      --GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+      GL.matrixMode $= GL.Projection
+      GL.loadIdentity
+      GL.ortho 0 (wf / minor) (hf / minor) 0 1 (-1)
       pure (win, eventQueue)
       --onDisplay win $ pure ()  -- get rid of this, let user choose
       --logger "display finished"
@@ -93,10 +143,12 @@ createWindow title (w, h) = do
             GLFW.setWindowShouldClose window True
         resizeWindow :: Input.EventQueue -> GLFW.WindowSizeCallback
         resizeWindow queue window w h = do
-          GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
-          GL.matrixMode $= GL.Modelview 0 
+          let minor = realToFrac $ if w > h then h else w
+          let (wf, hf) = (fromIntegral w, fromIntegral h)
+          --GL.viewport   $= (GL.Position 0 0, GL.Size (fromIntegral w) (fromIntegral h))
+          GL.matrixMode $= GL.Projection
           GL.loadIdentity
-          GL.ortho2D 0 (realToFrac w) (realToFrac h) 0
+          GL.ortho 0 (wf / minor) (hf / minor) 0 1 (-1)
           writeChan queue $ Input.Resize w h
         positionWindow :: Input.EventQueue -> GLFW.WindowPosCallback
         positionWindow queue window x y = writeChan queue $ Input.Position x y

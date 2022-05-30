@@ -7,8 +7,9 @@ module Acetone.Frontend where
 -- | These values are sent directly to the backend-callback
 -- | along with the front-end internal state record.
 data RendererAction
-    = ClearBuffer  -- < clear contents, called before a redraw
-    | ShowBuffer   -- < swap buffers, called after a redraw
+    = ClearBuffer  -- ^ clear contents, called before a redraw
+    | ShowBuffer   -- ^ swap buffers, called after a redraw
+    | DrawPicture
     | OpenWindow
     | Init
     | DoNothing  -- &c.

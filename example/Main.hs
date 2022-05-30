@@ -2,12 +2,14 @@ module Main where
 
 import Acetone
 import Acetone.Input
+import Acetone.Shapes
 import Acetone.Backend.GLFW (backend)
 
--- Position of circles.
-data State = State [(Distance, Distance)]
+-- Our game state with the position of circles.
+data State = State [(Distance, Distance)] (Distance, Distance)
+
 instance Default State where
-    def = State []
+    def = State [] (0, 0)
 
 -- Drawing context monad with our above state.
 type Context = GraphicsMonad State
@@ -21,27 +23,26 @@ initExample = installBackend backend
            >> animationFrame 60 (\elapsed -> pollEvents >>= mapM_ eventHandler >> drawScene elapsed)
 
 eventHandler :: Event -> Context ()
-eventHandler (Input Pressed (Mouse LeftClick) _) = circleUnderMouse
+eventHandler (Input Pressed (Mouse LeftClick) _) = circleWhereClick
 eventHandler (Input Released (Key (KeyChar 'Q')) _) = endAnimation
-eventHandler (Resize w h) = logLine $ "Resized to:" ++ show (w, h)
-eventHandler (MousePosition x y) = logStr (" mouse over: " ++ show (x, y))
---eventHandler Close = 
+eventHandler (MousePosition x y) = setHoverCircle x y
+eventHandler Close = endAnimation
 eventHandler _ = pure ()
 
 drawScene :: Elapsed -> Context ()
-drawScene elapsed = logStr $ "\r (.) drew (frame time: " ++ show elapsed ++ ")"
---    (State circles) <- getState
---    fold (>>) $ map drawCircle circles
+drawScene elapsed = do
+  (State circles (x, y)) <- getState
+  let cursorDisk = fill (transparent orange 0.4) $ circle 0.02 (x, y)
+  draw $ (foldr (<>) mempty $ map (fill white . circle 0.01) circles) <> cursorDisk
 
---drawScene NoChange = pure NoChange
+setHoverCircle :: Distance -> Distance -> Context ()
+setHoverCircle x y = do
+  (State xs _) <- getState
+  setState (State xs (x, y))
 
--- Get mousePositions out of Context state and add them to out state's array
-circleUnderMouse :: Context ()
-circleUnderMouse = do
+circleWhereClick :: Context ()
+circleWhereClick = do
     x <- mousePosition
-    liftIO $ putStrLn ("mouse position:" ++ show x)
-    (State xs) <- getState
-    setState (State (x:xs))
-
---drawCircle :: (Distance, Distance) -> Context ()
---drawCircle (x, y) = solid white >> circle x y
+    logLine $ "\n\nput circle at: " ++ show x
+    (State xs cursor) <- getState
+    setState (State (x:xs) cursor)
