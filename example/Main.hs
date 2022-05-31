@@ -32,8 +32,8 @@ eventHandler _ = pure ()
 drawScene :: Elapsed -> Context ()
 drawScene elapsed = do
   (State circles (x, y)) <- getState
-  let cursorDisk = fill (transparent orange 0.4) $ circle 0.02 (x, y)
-  draw $ (foldr (<>) mempty $ map (fill white . circle 0.01) circles) <> cursorDisk
+  let cursorDisk = fill (transparent orange 0.4) $ circle 0.035 (x, y)
+  draw $ (foldr (<>) mempty $ map (fill white . circle 0.03) circles) <> cursorDisk
 
 setHoverCircle :: Distance -> Distance -> Context ()
 setHoverCircle x y = do

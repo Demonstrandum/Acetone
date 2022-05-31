@@ -104,6 +104,7 @@ createWindow :: String -> (Int, Int) -> IO (GLFW.Window, Input.EventQueue)
 createWindow title (w, h) = do
   logger $ "opening window [" ++ title ++ "] with size (" ++ show w ++ ", " ++ show h ++ ")"
   GLFW.defaultWindowHints
+  GLFW.windowHint $ GLFW.WindowHint'Samples (Just 4)
   window <- GLFW.createWindow w h title Nothing Nothing
   case window of
     Nothing  -> logger "failed to create window" >> logError >> GLFW.terminate >> error "bail"
@@ -122,8 +123,9 @@ createWindow title (w, h) = do
       GLFW.setScrollCallback      win $ Just (scrollWheel eventQueue)
       GLFW.setWindowCloseCallback win $ Just (closeWindow eventQueue)
       -- Set some sane defaults
-      GL.shadeModel $= GL.Smooth
-      GL.lineSmooth $= GL.Enabled
+      GL.shadeModel    $= GL.Smooth
+      GL.multisample   $= GL.Enabled
+      GL.lineSmooth    $= GL.Enabled
       GL.polygonSmooth $= GL.Enabled
       GL.blend      $= GL.Enabled
       GL.blendFunc  $= (GL.SrcAlpha, GL.OneMinusSrcAlpha)
