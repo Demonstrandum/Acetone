@@ -15,7 +15,7 @@ extra-source-files: README.md
 
 library
     exposed-modules:  Acetone.Backend.Debug
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base < 5
                     , data-default ^>=0.7.1.1
                     , mtl ^>=2.2.2
                     , acetone ^>=0.1.0

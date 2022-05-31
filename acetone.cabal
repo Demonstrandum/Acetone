@@ -26,21 +26,21 @@ library
                    , Acetone.Shapes
     hs-source-dirs:  lib
     build-depends:
-        , base ^>=4.14.3.0
+        , base < 5
         , mtl ^>=2.2.2
         , freer-simple ^>= 1.2.1.2
         , data-default ^>=0.7.1.1
     default-extensions:
-        , DataKinds                 
-        , FlexibleContexts          
-        , FlexibleInstances         
-        , GADTs                     
+        , DataKinds
+        , FlexibleContexts
+        , FlexibleInstances
+        , GADTs
         , GeneralizedNewtypeDeriving
-        , MultiParamTypeClasses     
-        , ScopedTypeVariables       
-        , FlexibleInstances         
-        , LambdaCase                
-        , TypeOperators             
-        , TupleSections             
+        , MultiParamTypeClasses
+        , ScopedTypeVariables
+        , FlexibleInstances
+        , LambdaCase
+        , TypeOperators
+        , TupleSections
     ghc-options: -Wall -Wdeprecations -O2
     default-language: Haskell2010

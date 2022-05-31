@@ -15,7 +15,7 @@ extra-source-files: README.md
 
 library
     exposed-modules:  Acetone.Backend.GLFW
-    build-depends:    base ^>=4.14.3.0
+    build-depends:    base < 5
                     , acetone ^>=0.1.0
                     , GLFW-b ^>=3.3.0.0
                     , OpenGL ^>=3.0.3.0
