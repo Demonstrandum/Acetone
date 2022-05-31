@@ -33,6 +33,7 @@ backend state = do
     clearBuffer = Acetone.beforeRedraw state
     swapBuffer = Acetone.afterRedraw state
     currentPicture = Acetone.picture state
+    closeWindow = Acetone.closeWindow state
     
     action :: RendererAction -> IO Acetone.InternalState
     action DoNothing = pure state
@@ -45,10 +46,12 @@ backend state = do
                    , Acetone.getMousePosition  = GLFW.getCursorPos win
                    , Acetone.getWindowPosition = GLFW.getWindowPos win
                    , Acetone.getWindowSize     = GLFW.getWindowSize win
+                   , Acetone.closeWindow       = terminate win
                    }
     action ClearBuffer = clearBuffer >> pure state
     action ShowBuffer = swapBuffer >> pure state
     action DrawPicture = drawPicture currentPicture >> pure state
+    action Terminate = closeWindow >> GLFW.terminate >> pure state
 
 drawPicture :: Shapes.Picture -> IO ()
 drawPicture (Shapes.Picture []) = pure ()
@@ -154,7 +157,7 @@ createWindow title (w, h) = do
         positionWindow queue window x y = writeChan queue $ Input.Position x y
         getModifiers :: GLFW.ModifierKeys -> [Input.KeyboardModifier]
         getModifiers mods
-          = [Input.Shift   | GLFW.modifierKeysShift    mods]
+           = [Input.Shift   | GLFW.modifierKeysShift    mods]
           ++ [Input.Control | GLFW.modifierKeysControl  mods] 
           ++ [Input.Alt     | GLFW.modifierKeysAlt      mods]
           ++ [Input.Super   | GLFW.modifierKeysSuper    mods]
@@ -323,8 +326,10 @@ afterDisplay window = do
   GLFW.swapBuffers window
   GLFW.pollEvents
 
+terminate :: GLFW.Window -> IO ()
+terminate window = do
   shouldClose <- GLFW.windowShouldClose window
   -- TODO: let user prevent closing the window on a close event,
   --       by letting them handle it explicitly in the event handler.
-  when shouldClose $ GLFW.destroyWindow window >> GLFW.terminate
+  when shouldClose $ GLFW.destroyWindow window 
     

@@ -16,6 +16,7 @@ import Data.Default
 import System.IO (hPutStr, stderr)
 import Control.Arrow ((***))
 import Control.Monad.State
+import Data.Functor ((<&>))
 
 import qualified Acetone.Input as Input
 import qualified Acetone.Frontend as Frontend
@@ -42,7 +43,7 @@ data InternalState = InternalState
     , windowTitle :: String
     , initialWindowSize :: (Pixels, Pixels)
     , initialWindowPosition :: (Pixels, Pixels)
-    , closeWindow :: Bool
+    , shouldCloseWindow :: Bool
     , rendererAction :: Frontend.RendererAction
     , backendUpdate :: InternalState -> IO InternalState  -- ^ Only call with an intention (renderer action).
     , beforeRedraw :: IO ()
@@ -50,6 +51,7 @@ data InternalState = InternalState
     , getMousePosition :: IO (Double, Double)
     , getWindowPosition :: IO (Pixels, Pixels)
     , getWindowSize :: IO (Pixels, Pixels)
+    , closeWindow :: IO ()
     , eventQueue :: Maybe Input.EventQueue  -- ^ Channel of events.
     , picture :: Shapes.Picture
     }
@@ -59,7 +61,7 @@ instance Default InternalState where
                         (\i -> hPutStr stderr "error: no backend installed!\n" >> pure i)
                         (hPutStr stderr "error: no buffer/window exists yet\n")
                         (hPutStr stderr "error: no buffer/window exists yet\n")
-                        (pure (0, 0)) (pure (0, 0)) (pure (0, 0))
+                        (pure (0, 0)) (pure (0, 0)) (pure (0, 0)) (pure ())
                         Nothing mempty
 
 -- | Generic state and IO monad for some given user state structure.
@@ -107,14 +109,27 @@ getState = snd <$> pullState
 setState :: a -> GraphicsMonad a ()
 setState userState =  pullState >>= pushState . (, userState) . fst
 
+windowSize :: GraphicsMonad a (Int, Int)
+windowSize = getInternalState >>= liftIO . getWindowSize
+
+normalisePixel :: Real n => n -> GraphicsMonad a Distance
+normalisePixel x = do
+  winSize <- windowSize
+  let (w, h) = join (***) fromIntegral winSize
+  pure $ if w > h
+    then realToFrac x / h
+    else realToFrac x / w
+
 normalizePixels :: Real n => (n, n) -> GraphicsMonad a (Distance, Distance)
-normalizePixels (pixelsLeft, pixelsUp) = do
-    internal <- getInternalState
-    winSize <- liftIO $ getWindowSize internal
-    let (w, h) = join (***) fromIntegral winSize
-    pure $ if w > h
-      then (realToFrac pixelsLeft / h, realToFrac pixelsUp / h)
-      else (realToFrac pixelsLeft / w, realToFrac pixelsUp / w)
+normalizePixels (pixelsLeft, pixelsDown) = (,) <$> normalisePixel pixelsLeft <*> normalisePixel pixelsDown
+
+-- | Get a distance from the proportion of the height (1.0 at the bottom, 0.0 at the top)
+ofHeight :: Double -> GraphicsMonad a Distance
+ofHeight = (windowSize >>= normalisePixel . snd <&>) . (*)
+
+-- | Get a distance from the proportion of the width (1.0 at the right, 0.0 at the left)
+ofWidth :: Double -> GraphicsMonad a Distance
+ofWidth = (windowSize >>= normalisePixel . fst <&>) . (*)
 
 -- | Gets the mouse position in normalised units.
 mousePosition :: GraphicsMonad a (Distance, Distance)
@@ -212,8 +227,8 @@ animationFrame fps callback = monotonicMillis >>= animationFrame'
           when (sleepyTime > 0) $     -- TODO: this isn't sleeping long enough? does liftIO work here?
             liftIO $ threadDelay (round $ sleepyTime * 1000.0)
 
-          stop <- closeWindow <$> getInternalState
-          if stop then pure ()
+          stop <- shouldCloseWindow <$> getInternalState
+          if stop then pulseAction Frontend.Terminate
                   else animationFrame' now
 
 -- | Loads events from the event queue to a list of events such that you may
@@ -249,7 +264,7 @@ sendEvent event = sendEvent' . eventQueue =<< getInternalState
 
 goingToCloseWindow = do
   old <- getInternalState
-  let new = old { closeWindow = True }
+  let new = old { shouldCloseWindow = True }
   setInternalState new
 
 endAnimation :: GraphicsMonad a ()

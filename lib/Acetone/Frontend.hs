@@ -11,6 +11,7 @@ data RendererAction
     | ShowBuffer   -- ^ swap buffers, called after a redraw
     | DrawPicture
     | OpenWindow
+    | Terminate
     | Init
     | DoNothing  -- &c.
     deriving Show
