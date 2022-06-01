@@ -38,6 +38,10 @@ git config --global core.symlinks true
 ```
 in the Git CLI/Bash application.
 
+### Build and install this package
+
+Once in the repository, having completed the prerequisites, one can:
+
 ```sh
 cabal update
 cabal build
