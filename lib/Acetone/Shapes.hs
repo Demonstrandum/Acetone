@@ -27,8 +27,8 @@ data GradientType = Linear Radians | Radial Center
 data FillType = TrueSize | Tiled | FillStretched | FillWidth | FillHeight | Fill
 -- | Colours, gradients and images.
 data Texture = Solid Color
-             -- | Array of colours in gradient, array of offsets (0..1) 
-             -- | (which will be moduloed/wrapped) for each colour, and the gradient style. 
+             -- | Array of colours in gradient, array of offsets (0..1)
+             -- | (which will be moduloed/wrapped) for each colour, and the gradient style.
              | Gradient [Color] [Double] GradientType
              -- | Pixel buffer, how to fill the surface, and where to center it ((0,0) is center).
              | Buffer PixelBuffer FillType Point
@@ -109,13 +109,13 @@ close :: Shape -> Shape
 close (Shape vs f s) = Shape (last vs : vs) f s
 
 -- | Ellipse given the major and minor axes, and a centre.
-ellipse :: Distance -> Distance -> Point -> Shape
-ellipse major minor (x, y) = close $ polygon vertices
+ellipse :: Point -> Distance -> Distance -> Shape
+ellipse (x, y) major minor  = close $ polygon vertices
   where vertices = [ (x + major * cos t, y + minor * sin t) | t <- [0, 0.05 .. tau] ]
 
 -- | Circle of radius r with given centre.
-circle :: Distance -> Point -> Shape
-circle r = ellipse r r
+circle :: Point -> Distance -> Shape
+circle p r = ellipse p r r
 
 pointwise :: (a -> c) -> (b -> d) -> (a, b) -> (c, d)
 pointwise f g (x, y) = (f x, g y)
@@ -147,6 +147,12 @@ orange :: Color
 orange = Color 1 0.5 0 1
 plum :: Color
 plum = Color 0.67 0.194 0.255 1
+
+-- TODO: opaque and transparent function to work on general textures (ToTexture)
+-- by use of superior functions too that specify blend mode of alpha (currently just multiply).
+-- Indeed general colour blending for all chanels should be implemented generically,
+-- as well has HSL/HSB functions, along with hueShift, saturation and brightness/lightness
+-- modifier functions.
 
 -- | Make a colour opaque, i.e. removes transparency.
 solid :: Color -> Color

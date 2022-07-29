@@ -1,0 +1,14 @@
+cradle:
+  cabal:
+    - path: "./lib"
+      component: "lib:acetone"
+    - path: "./examples/example"
+      component: "exe:example-acetone"
+    - path: "./examples/beats"
+      component: "exe:beats-acetone"
+    - path: "./acetone-backend-glfw/lib"
+      component: "lib:acetone-backend-glfw"
+    - path: "./acetone-backend-png/lib"
+      component: "lib:acetone-backend-png"
+    - path: "./acetone-backend-debug/lib"
+      component: "lib:acetone-backend-debug"

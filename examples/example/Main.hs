@@ -29,11 +29,13 @@ eventHandler (MousePosition x y) = setHoverCircle x y
 eventHandler Close = endAnimation
 eventHandler _ = pure ()
 
-drawScene :: Elapsed -> Context ()
+drawScene :: Elapsed -> Context Picture
 drawScene elapsed = do
   (State circles (x, y)) <- getState
-  let cursorDisk = fill (transparent orange 0.4) $ circle 0.035 (x, y)
-  draw $ (foldr (<>) mempty $ map (fill white . circle 0.03) circles) <> cursorDisk
+  let cursorDisk = fill (transparent orange 0.4) $ circle (x, y) 0.035
+  let dots = foldr ((<>) . (fill white . flip circle 0.03)) mempty circles
+  let rule = fill white $ line (0, 0) (1, 1)
+  pure $ dots <> cursorDisk <> rule
 
 setHoverCircle :: Distance -> Distance -> Context ()
 setHoverCircle x y = do

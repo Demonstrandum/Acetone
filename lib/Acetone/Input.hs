@@ -5,7 +5,7 @@ data KeyboardButton
   = KeyEscape | KeyEnter | KeySpace | KeyTab
   | KeyBackspace | KeyInsert | KeyDelete
   | KeyUp | KeyLeft | KeyDown | KeyRight
-  | KeyPgUp | KeyPgDn | KeyHome | KeyEnd 
+  | KeyPgUp | KeyPgDn | KeyHome | KeyEnd
   | KeyCapsLck | KeySclLck | KeyNumLck | KeyPrtScr
   | KeyPause
   | KeyF1 | KeyF2 | KeyF3 | KeyF4 | KeyF5
@@ -21,7 +21,7 @@ data KeyboardButton
   | KeyLeftShift  | KeyLeftControl  | KeyLeftAlt  | KeyLeftSuper
   | KeyRightShift | KeyRightControl | KeyRightAlt | KeyRightSuper
   | KeyMenu | Key161 | Key162
-  | KeyChar Char  -- ^ Use uppercase alphabetical characters only! 
+  | KeyChar Char  -- ^ Use uppercase alphabetical characters only!
                   --   Keys are referred to as their non-modifier variants except for the alphabetic keys.
                   --   (e.g. the key's value without holding shift, '=' not '+')
                   --   Only visible characters count, whitespace is separate.
@@ -37,27 +37,32 @@ data MouseButton = LeftClick | MiddleClick | RightClick
                  deriving (Show, Eq)
 
 data Button = Mouse MouseButton
-            | Key KeyboardButton  
+            | Key KeyboardButton
             deriving (Show, Eq)
 
 data ButtonState = Pressed | Released | Repeating
                  deriving (Show, Eq)
 
 -- | UCS-4 (unicode) code point.
-type Codepoint = Char 
+type Codepoint = Char
 
 data CursorInWindow = EnteredWindow | LeftWindow
                     deriving (Show, Eq)
 
+-- | All types of events that can be handled.
+-- | Use `Input` to handle button presses, keyboard and mouse.
+-- | Use `Typed` to handle text input. Fires each time a full unicode character is typed.
+-- | `Resize` event is fired each time the drawing surface is resized (if possible).
+-- | `
 data Event = Input ButtonState Button [KeyboardModifier]  -- ^ When a specific mouse or keyboard button is pressed, released or repeated.
            | Typed Codepoint  -- ^ When a full unicode character is typed.
-           | Position Int Int
-           | Resize Int Int
-           | CursorInside CursorInWindow
-           | MousePosition Double Double  -- ^ Normalised to window.
+           | Position Int Int  -- ^ Surface position on screen, pixels.
+           | Resize Int Int  -- ^ Surafce is resized, pixel dimensions.
+           | CursorInside CursorInWindow  -- ^ Cursor has entered or left the window.
+           | MousePosition Double Double  -- ^ Position of cursor, normalised to window.
            | Scroll Double Double  -- ^ Scroll offset in x and y directions.
-           | Close  -- ^ Stop animating, close window.
-           | RenderedFrame  -- ^ Very important event! 
+           | Close  -- ^ Stop animating, close window/file/&c.
+           | RenderedFrame  -- ^ Very important event!
                             --   It tells us to stop trying to read events off
                             --   the end of the event queue, which could cause
                             --   us to block indefinitely.

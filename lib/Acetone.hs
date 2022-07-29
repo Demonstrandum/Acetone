@@ -7,6 +7,7 @@
 |-}
 
 module Acetone ( module Acetone
+               , module Acetone.Utils
                , module Data.Default
                , liftIO
                ) where
@@ -18,13 +19,13 @@ import Control.Arrow ((***))
 import Control.Monad.State
 import Data.Functor ((<&>))
 
+import Acetone.Utils
 import qualified Acetone.Input as Input
 import qualified Acetone.Frontend as Frontend
 import qualified Acetone.Shapes as Shapes
 import Acetone.Shapes (Distance)
 
-import GHC.Clock (getMonotonicTime)
-import Control.Concurrent (threadDelay, writeChan, readChan)
+import Control.Concurrent (writeChan, readChan)
 
 -- | Used to represent pixel sizes internally.
 type Pixels = Int
@@ -51,9 +52,11 @@ data InternalState = InternalState
     , getMousePosition :: IO (Double, Double)
     , getWindowPosition :: IO (Pixels, Pixels)
     , getWindowSize :: IO (Pixels, Pixels)
+    , getFrameSize  :: IO (Pixels, Pixels)
     , closeWindow :: IO ()
     , eventQueue :: Maybe Input.EventQueue  -- ^ Channel of events.
     , picture :: Shapes.Picture
+    , refreshCallback :: IO () -> IO ()  -- ^ Takes in the monad which draws our scene, such that it may be redrawn when a refresh is needed.
     }
 
 instance Default InternalState where
@@ -61,8 +64,8 @@ instance Default InternalState where
                         (\i -> hPutStr stderr "error: no backend installed!\n" >> pure i)
                         (hPutStr stderr "error: no buffer/window exists yet\n")
                         (hPutStr stderr "error: no buffer/window exists yet\n")
-                        (pure (0, 0)) (pure (0, 0)) (pure (0, 0)) (pure ())
-                        Nothing mempty
+                        (pure (0, 0)) (pure (0, 0)) (pure (0, 0)) (pure (0, 0))
+                        (pure ()) Nothing mempty (const $ pure ())
 
 -- | Generic state and IO monad for some given user state structure.
 -- @state@ is the generic type for the user's application's state.
@@ -135,27 +138,15 @@ ofWidth = (windowSize >>= normalisePixel . fst <&>) . (*)
 mousePosition :: GraphicsMonad a (Distance, Distance)
 mousePosition = (getInternalState >>= (liftIO . getMousePosition)) >>= normalizePixels
 
---getState :: Member (State (InternalState, state)) a => Eff a (InternalState, state)
---getState = send getIt
---    where getIt = get :: State (InternalState, state) (InternalState, state)
-
---putState :: Member (State (InternalState, state)) a => (InternalState, state) -> Eff a ()
---putState = send . putIt
---    where putIt = put :: (InternalState, state) -> State (InternalState, state) ()
-
--- TODO: add non `Default` variants to functions?
---       so users don't have to create an instance for Default
---       and can pass the defaults directly in as appropriate.
-
 -- This variant of openWindow requires state have a Default instance.
 openWindow :: Default state => String -> (Int, Int) -> (Int, Int) -> GraphicsMonad state ()
 openWindow title size pos = do
   i <- getInternalState
   let internal = i {
-        windowTitle    = title
+        windowTitle           = title
       , initialWindowSize     = size
       , initialWindowPosition = pos
-      , rendererAction = Frontend.OpenWindow
+      , rendererAction        = Frontend.OpenSurface
       }
   setInternalState internal
   backendCallback
@@ -173,6 +164,9 @@ backendCallback = do
                    >>= \new -> pure $ new { lastIO = pure () }
   setInternalState newState
 
+-- | Send a renderer action to the backend.
+-- The state is updated with the action, and the backend callback is
+-- immediately run.
 pulseAction :: Frontend.RendererAction -> GraphicsMonad state ()
 pulseAction action = do
   old <- getInternalState
@@ -203,45 +197,53 @@ draw pic = do
   new <- getInternalState
   setInternalState $ new { picture = mempty }
 
-monotonicMillis :: GraphicsMonad a Duration
-monotonicMillis = (1000.0 *) <$> liftIO getMonotonicTime
-
 -- | Perform drawing of the frame with the graphics monad given an elapsed time.
 -- | First argument provides the number of frames to aim to display each second,
 -- | second is the callback to be performed each frame.
-animationFrame :: FPS -> (Elapsed -> GraphicsMonad a ()) -> GraphicsMonad a ()
+animationFrame :: FPS -> (Elapsed -> GraphicsMonad a Shapes.Picture) -> GraphicsMonad a ()
 animationFrame 0 _ = pure ()
-animationFrame fps callback = monotonicMillis >>= animationFrame'
-  where frameTime :: Elapsed
-        frameTime = 1000.0 / fromIntegral fps
-        animationFrame' yesterTime = do
-          now <- monotonicMillis
-          let elapsed = now - yesterTime
-
+animationFrame fps callback = executeFrequency (fromIntegral fps) renderPicture
+  where renderPicture elapsed = do
           pulseAction Frontend.ClearBuffer
-          sendEvent Input.RenderedFrame  -- (!) must indicate end of last frame rendering.
-          callback elapsed
+          sendEvent Input.RenderedFrame  -- (!) must indicate end of previous frame rendering.
+          scene <- callback elapsed
+          draw scene
           pulseAction Frontend.ShowBuffer
 
-          let sleepyTime = frameTime - elapsed
-          when (sleepyTime > 0) $     -- TODO: this isn't sleeping long enough? does liftIO work here?
-            liftIO $ threadDelay (round $ sleepyTime * 1000.0)
+-- | Execute callback at given frequency (Hz).
+-- Uses a combination of innaccurate `sleep`/`threadDelay` and
+-- a spin-lock in order to give the CPU some rest while maintaining
+-- a more precise inter-frame time to stabalize the FPS.
+executeFrequency :: Double -> (Elapsed -> GraphicsMonad a ()) -> GraphicsMonad a ()
+executeFrequency 0 _ = pure ()
+executeFrequency hz callback = now >>= executeFrequency'
+  where now = liftIO monotonicMillis
+        frameTime = 1000.0 / hz :: Elapsed  -- target frame time in milliseconds
+        executeFrequency' lastTick = do
+          tick <- now
+          callback (tick - lastTick)
+          tock <- now
+
+          let delta = tock - tick
+          let sleepyTime = frameTime - delta
+          when (sleepyTime > 0) $
+            liftIO $ preciseDelay sleepyTime
 
           stop <- shouldCloseWindow <$> getInternalState
           if stop then pulseAction Frontend.Terminate
-                  else animationFrame' now
+                  else executeFrequency' tick
 
 -- | Loads events from the event queue to a list of events such that you may
--- | perform actions on each of these events.  These would usually be passed
--- | to an event handler, e.g.
+-- perform actions on each of these events.  These would usually be passed
+-- to an event handler, e.g.
 -- >     pollEvents >>= mapM eventHandler >>= drawScene . last
 -- >     -- where we have
 -- >     eventHandler :: Event -> GraphicsMonad () GameState
 -- >     eventHandler (Input ... ) = ...
 -- >     drawScene :: GameState -> GraphicsMonad () ()
 -- >     drawScene (GameState ...) = draw (...)
--- | Of course, you may do something completely different, since the above
--- | is a bit naïve.
+-- Of course, you may do something completely different, since the above
+-- is a bit naïve.
 pollEvents :: GraphicsMonad a [Input.Event]
 pollEvents = do
   queue <- eventQueue <$> getInternalState
@@ -262,6 +264,7 @@ sendEvent event = sendEvent' . eventQueue =<< getInternalState
         sendEvent' (Just events) = liftIO $ writeChan events event
         sendEvent' Nothing = pure ()
 
+goingToCloseWindow :: GraphicsMonad a ()
 goingToCloseWindow = do
   old <- getInternalState
   let new = old { shouldCloseWindow = True }

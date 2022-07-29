@@ -1,4 +1,4 @@
-cabal-version:      3.0
+cabal-version:      3.6
 name:               example-acetone
 version:            0.1.0
 synopsis:           Debug testing of Acetone.
@@ -11,7 +11,7 @@ maintainer:         samuel@knutsen.co
 category:           Graphics
 extra-source-files: README.md
 
-executable acetone-debug-example
+executable example-acetone
     main-is:        Main.hs
     other-modules:
     hs-source-dirs: ./

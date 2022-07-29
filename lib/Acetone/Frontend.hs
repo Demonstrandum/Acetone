@@ -7,11 +7,11 @@ module Acetone.Frontend where
 -- | These values are sent directly to the backend-callback
 -- | along with the front-end internal state record.
 data RendererAction
-    = ClearBuffer  -- ^ clear contents, called before a redraw
-    | ShowBuffer   -- ^ swap buffers, called after a redraw
-    | DrawPicture
-    | OpenWindow
-    | Terminate
-    | Init
+    = ClearBuffer  -- ^ Clear contents, called before a redraw.
+    | ShowBuffer   -- ^ Swap buffers, called after a redraw.
+    | DrawPicture  -- ^ Performs work needed to actually draw a `Picture`.
+    | OpenSurface  -- ^ Opens a window, file or similar, specific to the backend.
+    | Terminate    -- ^ Stop and cleanup the whole backend, not to be used again.
+    | Init         -- ^ Called before the backend becomes useable, may be a noop.
     | DoNothing  -- &c.
     deriving Show

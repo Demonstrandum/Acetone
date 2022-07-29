@@ -3,4 +3,5 @@ packages:
     acetone-backend-debug/
     acetone-backend-glfw/
     acetone-backend-png/
-    example
+    examples/example/
+    examples/beats/
