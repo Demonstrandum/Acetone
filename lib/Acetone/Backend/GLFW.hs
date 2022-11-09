@@ -109,12 +109,32 @@ initGLFW = do
     then logger "ready" >> GLFW.setErrorCallback (Just errorLog)
     else logger "glfw failed to init" >> GLFW.terminate
 
+-- | Create window in current context.
 createWindow :: String -> (Int, Int) -> IO (GLFW.Window, Input.EventQueue)
 createWindow title (width, height) = do
   logger $ "opening window [" ++ title ++ "] with size " ++ show (width, height)
   GLFW.defaultWindowHints
   GLFW.windowHint $ GLFW.WindowHint'Samples (Just 4)
   window <- GLFW.createWindow width height title Nothing Nothing
+  GLFW.makeContextCurrent window
+  logger . ("gl: version: " ++) =<< GL.get GL.glVersion
+  logger . ("     vendor: " ++) =<< GL.get GL.vendor
+  logger . ("   renderer: " ++) =<< GL.get GL.renderer
+  --logger . (" extensions: " ++) . show =<< GL.get GL.glExtensions
+  -- Enables VSync.
+  GLFW.swapInterval 1  -- number of screen refreshes the GPU should wait before swapping buffers.
+  -- Get and log monitor information
+  GLFW.getPrimaryMonitor >>= \case
+    Nothing -> pure ()
+    Just display -> do
+      (Just dispName) <- GLFW.getMonitorName display
+      (dispW, dispH) <- GLFW.getMonitorPhysicalSize display
+      (Just vm) <- GLFW.getVideoMode display
+      let (rb, gb, bb) = (GLFW.videoModeRedBits vm, GLFW.videoModeGreenBits vm, GLFW.videoModeBlueBits vm)
+      logger $ "primary display: " ++ dispName ++ ": (" ++ show dispW ++ "×" ++ show dispH ++ ")"
+        ++ " video:(" ++ show (GLFW.videoModeWidth vm) ++ "×" ++ show (GLFW.videoModeHeight vm)
+        ++ "; (r+g+b):(" ++ show rb ++ "+" ++ show gb ++ "+" ++ show bb ++ " = " ++ show (rb+gb+bb) ++ " bits depth)"
+        ++ " @ " ++ show (GLFW.videoModeRefreshRate vm) ++ " Hz)"
   case window of
     Nothing  -> logger "failed to create window" >> logError >> GLFW.terminate >> error "bail"
     Just win -> do

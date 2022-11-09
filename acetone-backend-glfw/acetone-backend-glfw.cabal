@@ -1,4 +1,4 @@
-cabal-version:      3.6
+cabal-version:      3.8
 name:               acetone-backend-glfw
 version:            0.1.0
 synopsis:
@@ -15,11 +15,14 @@ extra-source-files: README.md
 
 library
     exposed-modules:  Acetone.Backend.GLFW
-    build-depends:    base < 5
+    build-depends:    base >= 4.16 && < 5
                     , acetone ^>=0.1.0
                     , GLFW-b ^>=3.3.0.0
                     , OpenGL ^>=3.0.3.0
                     , time ^>= 1.9.3
     hs-source-dirs:   lib
+    default-extensions:
+        , UnicodeSyntax
+        , LambdaCase
     ghc-options: -Wall -Wdeprecations -O2
     default-language: Haskell2010

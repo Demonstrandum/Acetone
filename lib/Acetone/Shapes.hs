@@ -162,5 +162,5 @@ opaque = solid
 
 -- | Give transparency to colour.
 -- | If colour is already transparent, the alpha channels multiply.
-transparent :: Color -> Double -> Color
-transparent (Color r g b a) alpha = Color r g b $ a * alpha
+transparent :: Double -> Color -> Color
+transparent scalar (Color r g b a) = Color r g b $ a * scalar

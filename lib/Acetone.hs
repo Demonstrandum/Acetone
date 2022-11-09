@@ -138,9 +138,12 @@ ofWidth = (windowSize >>= normalisePixel . fst <&>) . (*)
 mousePosition :: GraphicsMonad a (Distance, Distance)
 mousePosition = (getInternalState >>= (liftIO . getMousePosition)) >>= normalizePixels
 
--- This variant of openWindow requires state have a Default instance.
-openWindow :: Default state => String -> (Int, Int) -> (Int, Int) -> GraphicsMonad state ()
-openWindow title size pos = do
+-- | Open the drawing surface in the current context.
+-- This is either a window or file, (&c.) depending on the backend chosen.
+-- A title, size, and position (where applicable) must be suppplied.
+-- This variant of `openSurface` requires state have a Default instance.
+openSurface :: Default state => String -> (Int, Int) -> (Int, Int) -> GraphicsMonad state ()
+openSurface title size pos = do
   i <- getInternalState
   let internal = i {
         windowTitle           = title
@@ -198,30 +201,49 @@ draw pic = do
   setInternalState $ new { picture = mempty }
 
 -- | Perform drawing of the frame with the graphics monad given an elapsed time.
--- | First argument provides the number of frames to aim to display each second,
--- | second is the callback to be performed each frame.
+-- First argument provides the number of frames to aim to display each second,
+-- second is the callback to be performed each frame. Example:
+-- >   `animationFrame` 24 (\ε -> pollEvents >>= mapM_ eventHandler >> buildPicture)
+-- Use `simulationLoop` if you want to update a state every frame in a pure manner.
+-- Otherwise, state can be managed by `animationFrame` by using the monadic
+-- `getState` and `setState` function, but this is less _functional_-style.
 animationFrame :: FPS -> (Elapsed -> GraphicsMonad a Shapes.Picture) -> GraphicsMonad a ()
 animationFrame 0 _ = pure ()
-animationFrame fps callback = executeFrequency (fromIntegral fps) renderPicture
-  where renderPicture elapsed = do
+animationFrame fps callback = executeFrequency (fromIntegral fps) () renderPicture
+  where renderPicture _ elapsed = do
           pulseAction Frontend.ClearBuffer
           sendEvent Input.RenderedFrame  -- (!) must indicate end of previous frame rendering.
           scene <- callback elapsed
           draw scene
           pulseAction Frontend.ShowBuffer
 
+-- | Same as `animationFrame` but with a remebered simualtion-state, which gets updated by the callback.
+-- The callback is supplied the last state and the time elapsed since the last iteration,
+-- and must return a tuple of the updated state and the scene to render. Example:
+-- >   `simulationLoop` 60 (\oldState ε -> pollEvents >>= handleEvents (updateState oldState ε) >>= \newState -> (newSate, buildScene newState))
+simulationLoop :: Default a => FPS -> (a -> Elapsed -> GraphicsMonad a (a, Shapes.Picture)) -> GraphicsMonad a ()
+simulationLoop 0 _ = pure ()
+simulationLoop fps callback = executeFrequency (fromIntegral fps) def renderPicture
+  where renderPicture lastState elapsed = do
+          pulseAction Frontend.ClearBuffer
+          sendEvent Input.RenderedFrame
+          (newState, scene) <- callback lastState elapsed
+          draw scene
+          pulseAction Frontend.ShowBuffer
+          pure newState
+
 -- | Execute callback at given frequency (Hz).
 -- Uses a combination of innaccurate `sleep`/`threadDelay` and
 -- a spin-lock in order to give the CPU some rest while maintaining
 -- a more precise inter-frame time to stabalize the FPS.
-executeFrequency :: Double -> (Elapsed -> GraphicsMonad a ()) -> GraphicsMonad a ()
-executeFrequency 0 _ = pure ()
-executeFrequency hz callback = now >>= executeFrequency'
+executeFrequency :: Double -> b -> (b -> Elapsed -> GraphicsMonad a b) -> GraphicsMonad a ()
+executeFrequency 0 _ _ = pure ()
+executeFrequency hz initialState callback = now >>= executeFrequency' initialState . subtract frameTime
   where now = liftIO monotonicMillis
         frameTime = 1000.0 / hz :: Elapsed  -- target frame time in milliseconds
-        executeFrequency' lastTick = do
+        executeFrequency' lastState lastTick = do
           tick <- now
-          callback (tick - lastTick)
+          newState <- callback lastState (tick - lastTick)
           tock <- now
 
           let delta = tock - tick
@@ -231,16 +253,16 @@ executeFrequency hz callback = now >>= executeFrequency'
 
           stop <- shouldCloseWindow <$> getInternalState
           if stop then pulseAction Frontend.Terminate
-                  else executeFrequency' tick
+                  else executeFrequency' newState tick
 
 -- | Loads events from the event queue to a list of events such that you may
 -- perform actions on each of these events.  These would usually be passed
 -- to an event handler, e.g.
--- >     pollEvents >>= mapM eventHandler >>= drawScene . last
+-- >     `pollEvents` >>= mapM eventHandler >>= drawScene . last
 -- >     -- where we have
--- >     eventHandler :: Event -> GraphicsMonad () GameState
+-- >     eventHandler :: Event -> `GraphicsMonad` () GameState
 -- >     eventHandler (Input ... ) = ...
--- >     drawScene :: GameState -> GraphicsMonad () ()
+-- >     drawScene :: GameState -> `GraphicsMonad` () ()
 -- >     drawScene (GameState ...) = draw (...)
 -- Of course, you may do something completely different, since the above
 -- is a bit naïve.

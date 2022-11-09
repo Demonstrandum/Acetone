@@ -1,4 +1,4 @@
-cabal-version:      3.6
+cabal-version:      3.8
 name:               beats-acetone
 version:            0.1.0
 synopsis:           Beats rythm test for Acetone.
@@ -16,8 +16,13 @@ executable beats-acetone
     other-modules:
     hs-source-dirs: ./
     build-depends:
-        base < 5,
+        base >= 4.16 && < 5,
         acetone-backend-glfw ^>= 0.1.0,
         acetone ^>= 0.1.0
     ghc-options: -Wall -Wdeprecations -O2 -threaded -rtsopts -with-rtsopts=-N
     default-language: Haskell2010
+    default-extensions:
+        , TemplateHaskell
+        , OverloadedStrings
+        , FlexibleInstances
+        , QuasiQuotes

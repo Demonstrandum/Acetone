@@ -11,7 +11,7 @@ author:             Samuel
 maintainer:         samuel@knutsen.co
 
 category:           Graphics
-extra-source-files: READNME.md
+extra-source-files: README.md
 
 library
     exposed-modules:  Acetone.Backend.PNG

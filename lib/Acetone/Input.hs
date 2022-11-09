@@ -1,5 +1,14 @@
 module Acetone.Input where
+
+import Prelude.Unicode
 import Control.Concurrent.Chan
+import Data.Char (toUpper, isSpace)
+import Data.List (dropWhileEnd)
+-- Type-level literal verification of KeyChar.
+import Data.Typeable
+import Data.Data
+import Language.Haskell.TH as TH
+import Language.Haskell.TH.Quote as THQ
 
 data KeyboardButton
   = KeyEscape | KeyEnter | KeySpace | KeyTab
@@ -21,12 +30,65 @@ data KeyboardButton
   | KeyLeftShift  | KeyLeftControl  | KeyLeftAlt  | KeyLeftSuper
   | KeyRightShift | KeyRightControl | KeyRightAlt | KeyRightSuper
   | KeyMenu | Key161 | Key162
-  | KeyChar Char  -- ^ Use uppercase alphabetical characters only!
-                  --   Keys are referred to as their non-modifier variants except for the alphabetic keys.
-                  --   (e.g. the key's value without holding shift, '=' not '+')
+  | KeyChar Char  -- ^ Use only _uppercase_ alphabetical characters,
+                  --   other keys are referred to as their non-modifier variants (except for the alphabetic keys)
+                  --   (i.e. the key's value without holding shift, '=' not '+')
                   --   Only visible characters count, whitespace is separate.
   | KeyUnknown Int  -- ^ A scancode is provided in case the key is not listed here.
-  deriving (Show, Eq)
+  deriving (Show, Eq, Data, Typeable)
+
+spaceKeys = ["Space", " "]
+escapeKeys = ["Escape", "Esc"]
+equalKeys = ["+", "=", "Plus", "Equal", "Equals"]
+hyphenKeys = ["-", "_"]
+
+-- TODO: Finish all possible keyboard keys on a standard US keyboard.
+makeKeyChar :: MonadFail m => String -> m KeyboardButton
+makeKeyChar "" = fail "No character to match."
+makeKeyChar key
+  | key ∈ spaceKeys  = pure KeySpace
+  | key ∈ escapeKeys = pure KeyEscape
+  | key ∈ equalKeys  = pure $ KeyChar '='
+  -- TODO: Finish rest of special symbol keys.
+  | key == [head key] =  pure . KeyChar . toUpper $ head key
+  | ' ' ∈ [head key, last key] = makeKeyChar . trim $ key
+  | otherwise = fail $ "No corresponding key: `" ++ key ++ "'."
+  where trim = dropWhileEnd isSpace . dropWhile isSpace
+
+makeKeyCharExp :: String -> TH.Q TH.Exp
+makeKeyCharExp s = makeKeyChar s >>= dataToExpQ (const Nothing)
+
+makeKeyCharPat :: String -> TH.Q TH.Pat
+makeKeyCharPat s = makeKeyChar s >>= dataToPatQ (const Nothing)
+
+-- | Construct a `(KeyChar Char)::KeyboardButton`  with less
+-- chance of making a mistake with whether Shift or Alt was press &c.
+-- i.e. accepts multiple variants of the same key.
+-- That is: `[char|Space]` == `[char| |]` == `KeySpace`;
+-- `[char|Esc|]` == `[char|Escape|]` == `KeyEscape`;
+-- `[char|q|]` == `[char|Q|]` == `KeyChar 'Q'`.
+char :: THQ.QuasiQuoter
+char = QuasiQuoter { quoteExp = makeKeyCharExp
+                   , quotePat = makeKeyCharPat
+                   , quoteDec = error "invalid use"
+                   , quoteType = error "invalid use"
+                   }
+
+-- | Construct a `(Input Pressed (Key KeyboardButton) [KeyBoardModifier])::Event`
+-- by parsing common keyboard combination notation.
+-- Example: `[press| Ctrl + Shift + D |]`
+--       == `[press|control+shift+d|]`
+--       == `Input Pressed (Key KeyChar 'D') [Shift, Control]`.
+press :: THQ.QuasiQuoter
+press = error "not implemented"
+
+-- | Construct a `(Input Released (Key KeyboardButton) [KeyBoardModifier])::Event`
+-- by parsing common keyboard combination notation.
+-- Example: `[release| Super + Alt + = |]`
+--       == `[release|command+option+plus|]`
+--       == `Input Pressed (Key KeyChar '=') [Alt, Super]`.
+release :: THQ.QuasiQuoter
+release = error "not implemented"
 
 data KeyboardModifier  -- | Modifiers are in no particular order!
   = Shift | Control | Alt

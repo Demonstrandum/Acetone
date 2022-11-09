@@ -9,7 +9,7 @@ author:             Samuel
 maintainer:         samuel@knutsen.co
 
 category:           Graphics
-extra-source-files: README.md
+extra-source-files:
 
 executable example-acetone
     main-is:        Main.hs

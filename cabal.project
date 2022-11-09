@@ -1,3 +1,4 @@
+with-compiler: ghc-9.4.2
 packages:
     acetone.cabal
     acetone-backend-debug/
@@ -5,3 +6,7 @@ packages:
     acetone-backend-png/
     examples/example/
     examples/beats/
+
+allow-newer:
+    , freer-simple:template-haskell
+    , OpenGLRaw:text
